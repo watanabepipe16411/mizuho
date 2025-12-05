@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>申込フォーム（PDF取込み＋OCR自動入力）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --card: #fff;
+      --accent: #4f46e5;
+      --border: #e5e7eb;
+      --text: #111827;
+      --muted: #6b7280;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 18px 20px;
+    }
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 20px;
+      font-weight: 700;
+    }
+    main {
+      padding: 28px 0 48px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.05);
+    }
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    input, textarea, button, select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 15px;
+      font-family: inherit;
+      background: #fff;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: 2px solid rgba(79, 70, 229, 0.2);
+      border-color: var(--accent);
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .btn {
+      width: auto;
+      cursor: pointer;
+      border: none;
+      color: #fff;
+      font-weight: 700;
+      transition: transform 80ms ease, box-shadow 120ms ease;
+    }
+    .btn.primary { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+    .btn.secondary { background: linear-gradient(135deg, #10b981, #059669); }
+    .btn.ghost { background: #fff; color: var(--text); border: 1px solid var(--border); }
+    .btn:active { transform: translateY(1px); box-shadow: none; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .flex {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .half { flex: 1 1 280px; }
+    .preview {
+      width: 100%;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      min-height: 320px;
+      background: #f9fafb;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      position: relative;
+    }
+    canvas { width: 100%; height: auto; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #4338ca;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #10b981;
+      box-shadow: 0 0 0 6px rgba(16,185,129,0.15);
+    }
+    @media (min-width: 960px) {
+      .grid {
+        grid-template-columns: 1.1fr 0.9fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="title">
+        📄 申込フォーム
+        <span class="badge">PDF取込み + OCR</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="grid">
+      <section class="card">
+        <h2>1. 申込PDFをアップロード</h2>
+        <p class="muted">PDFの1ページ目をプレビューし、OCRで内容を読み取ります。</p>
+        <input type="file" id="pdfInput" accept="application/pdf">
+        <div class="actions">
+          <button class="btn primary" id="analyzeBtn" disabled>PDFを解析する</button>
+          <button class="btn ghost" id="clearBtn">クリア</button>
+        </div>
+        <div class="preview" id="preview">
+          <span class="muted">PDFを選択するとここにプレビューが表示されます</span>
+          <canvas id="pdfCanvas" hidden></canvas>
+        </div>
+        <div class="status" id="status" style="margin-top:10px;">
+          <span class="dot" id="dot" style="background:#d1d5db; box-shadow:none;"></span>
+          <span id="statusText">待機中</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>2. 自動入力された内容を確認・修正</h2>
+        <p class="muted">読み取り結果を自動で差し込みます。不備は自由に修正できます。</p>
+        <div class="flex">
+          <div class="half">
+            <label for="name">氏名</label>
+            <input id="name" name="name" placeholder="山田 太郎">
+          </div>
+          <div class="half">
+            <label for="phone">電話番号</label>
+            <input id="phone" name="phone" placeholder="090-1234-5678">
+          </div>
+          <div class="half">
+            <label for="email">メールアドレス</label>
+            <input id="email" name="email" placeholder="example@mail.jp">
+          </div>
+          <div class="half">
+            <label for="zip">郵便番号</label>
+            <input id="zip" name="zip" placeholder="100-0001">
+          </div>
+          <div style="flex: 1 1 100%;">
+            <label for="address">住所</label>
+            <input id="address" name="address" placeholder="東京都千代田区..." >
+          </div>
+          <div style="flex: 1 1 100%;">
+            <label for="notes">自由記入 / 備考</label>
+            <textarea id="notes" placeholder="特記事項を記入してください"></textarea>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn secondary" id="submitBtn">内容を送信（ダミー）</button>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:18px;">
+      <h2>3. OCR抽出テキスト</h2>
+      <p class="muted">抽出テキストを直接修正してもOKです。フォームへ再反映できます。</p>
+      <textarea id="rawText" placeholder="ここにOCR結果が入ります"></textarea>
+      <div class="actions">
+        <button class="btn primary" id="applyTextBtn">修正テキストをフォームへ再反映</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- PDF.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js" integrity="sha512-aAt4GadYo6I7QludrJC4/YDm8jS6MwO/3dMbVlmuDrN2cdgL+lEJuvwvVGQCbYY2UCXfFpVjePxPFwKiBOUdbg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <!-- Tesseract.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js" integrity="sha384-oicJAbjJP3cAFL4RWm0IhqlNhhHA0XJ1TKmMZ7nJCX6lFZwxaWlLx9hhKF5l8WCl" crossorigin="anonymous"></script>
+
+  <script>
+    const pdfInput = document.getElementById('pdfInput');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const preview = document.getElementById('preview');
+    const canvas = document.getElementById('pdfCanvas');
+    const statusText = document.getElementById('statusText');
+    const dot = document.getElementById('dot');
+    const rawText = document.getElementById('rawText');
+
+    const fields = {
+      name: document.getElementById('name'),
+      phone: document.getElementById('phone'),
+      email: document.getElementById('email'),
+      zip: document.getElementById('zip'),
+      address: document.getElementById('address'),
+      notes: document.getElementById('notes'),
+    };
+
+    let pdfData = null;
+
+    const setStatus = (text, color = '#10b981') => {
+      statusText.textContent = text;
+      dot.style.background = color;
+      dot.style.boxShadow = color === '#d1d5db' ? 'none' : `0 0 0 6px ${hexToRgba(color, 0.2)}`;
+    };
+
+    const hexToRgba = (hex, alpha) => {
+      const h = hex.replace('#', '');
+      const bigint = parseInt(h, 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return `rgba(${r},${g},${b},${alpha})`;
+    };
+
+    pdfInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) {
+        analyzeBtn.disabled = true;
+        setStatus('待機中', '#d1d5db');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        pdfData = new Uint8Array(reader.result);
+        analyzeBtn.disabled = false;
+        setStatus('準備完了：解析を実行できます', '#10b981');
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    clearBtn.addEventListener('click', () => {
+      pdfInput.value = '';
+      analyzeBtn.disabled = true;
+      pdfData = null;
+      canvas.hidden = true;
+      rawText.value = '';
+      Object.values(fields).forEach(f => f.value = '');
+      preview.querySelector('.muted')?.classList.remove('hidden');
+      setStatus('待機中', '#d1d5db');
+    });
+
+    analyzeBtn.addEventListener('click', async () => {
+      if (!pdfData) return;
+      setStatus('PDF読込中...', '#f59e0b');
+
+      try {
+        const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 1.5 });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        canvas.hidden = false;
+        preview.querySelector('.muted')?.classList.add('hidden');
+        setStatus('OCR解析中（1ページ目）...', '#f59e0b');
+
+        const dataUrl = canvas.toDataURL('image/png');
+        const { data: { text } } = await Tesseract.recognize(dataUrl, 'jpn+eng', {
+          logger: m => {
+            if (m.status === 'recognizing text') {
+              setStatus(`OCR解析中... ${Math.round(m.progress * 100)}%`, '#f59e0b');
+            }
+          }
+        });
+
+        rawText.value = text;
+        applyHeuristics(text);
+        setStatus('完了：フォームへ反映しました', '#10b981');
+      } catch (err) {
+        console.error(err);
+        setStatus('エラーが発生しました。コンソールを確認してください', '#ef4444');
+      }
+    });
+
+    const applyHeuristics = (text) => {
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const joined = lines.join(' ');
+
+      const nameMatch = joined.match(/氏名[:：]?\s*([^\s　]+)/) || joined.match(/御名前[:：]?\s*([^\s　]+)/);
+      if (nameMatch) fields.name.value = nameMatch[1];
+
+      const phoneMatch = joined.match(/0\d{1,4}[-－]?\d{1,4}[-－]?\d{3,4}/);
+      if (phoneMatch) fields.phone.value = phoneMatch[0];
+
+      const emailMatch = joined.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+      if (emailMatch) fields.email.value = emailMatch[0];
+
+      const zipMatch = joined.match(/〒?\s?(\d{3})[-－]?(\d{4})/);
+      if (zipMatch) fields.zip.value = `${zipMatch[1]}-${zipMatch[2]}`;
+
+      const addressMatch = joined.match(/(都|道|府|県).+?(市|区|町|村).+/);
+      if (addressMatch) fields.address.value = addressMatch[0];
+
+      // Put raw text into notes as well for reference
+      fields.notes.value = lines.slice(0, 6).join('\n');
+    };
+
+    document.getElementById('applyTextBtn').addEventListener('click', () => {
+      const text = rawText.value || '';
+      applyHeuristics(text);
+      setStatus('修正テキストを再解析しました', '#10b981');
+    });
+
+    document.getElementById('submitBtn').addEventListener('click', () => {
+      const payload = {
+        name: fields.name.value,
+        phone: fields.phone.value,
+        email: fields.email.value,
+        zip: fields.zip.value,
+        address: fields.address.value,
+        notes: fields.notes.value,
+        rawText: rawText.value,
+      };
+      console.log('送信するデータ（サンプル）', payload);
+      alert('デモ：コンソールに送信データを出力しました。');
+    });
+  </script>
+</body>
+</html>
+
