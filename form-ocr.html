@@ -234,9 +234,13 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js" integrity="sha384-oicJAbjJP3cAFL4RWm0IhqlNhhHA0XJ1TKmMZ7nJCX6lFZwxaWlLx9hhKF5l8WCl" crossorigin="anonymous"></script>
 
   <script>
-    // pdf.js worker を明示指定（GitHub Pages でのパス解決用）
-    if (window.pdfjsLib) {
+    // pdf.js ロード確認と worker 明示指定（GitHub Pages でのパス解決用）
+    let pdfjs = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
+    if (pdfjs) {
+      pdfjsLib = pdfjs;
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
+    } else {
+      console.error('pdfjsLib is not defined: CDNが読み込めていません');
     }
 
     const pdfInput = document.getElementById('pdfInput');
@@ -309,9 +313,16 @@
       Object.values(fields).forEach(f => f && (f.value = ''));
       preview.querySelector('.muted')?.classList.remove('hidden');
       setStatus('待機中', '#d1d5db');
+      errorText.textContent = '';
+      errorText.style.display = 'none';
     });
 
     analyzeBtn.addEventListener('click', async () => {
+      if (!pdfjsLib) {
+        setStatus('PDF.js の読み込みに失敗しました。ネットワーク/CORSを確認してください。', '#ef4444');
+        errorText.textContent = 'pdfjsLib is not defined (CDNがブロック/オフラインの可能性)';
+        return;
+      }
       if (!pdfData) return;
       setStatus('PDF読込中...', '#f59e0b');
 
