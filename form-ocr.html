@@ -248,6 +248,7 @@
     };
 
     let pdfData = null;
+    const ignoreKeywords = ['ゆうちょ', '郵便振替', '払込票', '振替口座'];
 
     const setStatus = (text, color = '#10b981') => {
       statusText.textContent = text;
@@ -316,14 +317,23 @@
           }
         });
 
-        rawText.value = text;
-        applyHeuristics(text);
-        setStatus('完了：フォームへ反映しました', '#10b981');
+        const cleaned = filterText(text);
+        rawText.value = cleaned;
+        applyHeuristics(cleaned);
+        setStatus('完了：フォームへ反映しました（ゆうちょ欄除外）', '#10b981');
       } catch (err) {
         console.error(err);
         setStatus('エラーが発生しました。コンソールを確認してください', '#ef4444');
       }
     });
+
+    const filterText = (text) => {
+      const lines = text.split(/\r?\n/).filter(l => {
+        const lower = l.toLowerCase();
+        return !ignoreKeywords.some(k => lower.includes(k));
+      });
+      return lines.join('\n');
+    };
 
     const applyHeuristics = (text) => {
       const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -349,9 +359,10 @@
     };
 
     document.getElementById('applyTextBtn').addEventListener('click', () => {
-      const text = rawText.value || '';
+      const text = filterText(rawText.value || '');
+      rawText.value = text;
       applyHeuristics(text);
-      setStatus('修正テキストを再解析しました', '#10b981');
+      setStatus('修正テキストを再解析しました（ゆうちょ欄除外）', '#10b981');
     });
 
     document.getElementById('submitBtn').addEventListener('click', () => {
