@@ -176,6 +176,7 @@
           <span class="dot" id="dot" style="background:#d1d5db; box-shadow:none;"></span>
           <span id="statusText">待機中</span>
         </div>
+        <p class="muted" id="errorText" style="margin-top:6px; display:none;"></p>
       </section>
 
       <section class="card">
@@ -233,6 +234,11 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js" integrity="sha384-oicJAbjJP3cAFL4RWm0IhqlNhhHA0XJ1TKmMZ7nJCX6lFZwxaWlLx9hhKF5l8WCl" crossorigin="anonymous"></script>
 
   <script>
+    // pdf.js worker を明示指定（GitHub Pages でのパス解決用）
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
+    }
+
     const pdfInput = document.getElementById('pdfInput');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const clearBtn = document.getElementById('clearBtn');
@@ -241,6 +247,7 @@
     const statusText = document.getElementById('statusText');
     const dot = document.getElementById('dot');
     const rawText = document.getElementById('rawText');
+    const errorText = document.getElementById('errorText');
 
     const fields = {
       kana: document.getElementById('kana'),
@@ -260,6 +267,12 @@
       statusText.textContent = text;
       dot.style.background = color;
       dot.style.boxShadow = color === '#d1d5db' ? 'none' : `0 0 0 6px ${hexToRgba(color, 0.2)}`;
+      if (color === '#ef4444') {
+        errorText.style.display = 'block';
+      } else {
+        errorText.style.display = 'none';
+        errorText.textContent = '';
+      }
     };
 
     const hexToRgba = (hex, alpha) => {
@@ -330,6 +343,7 @@
       } catch (err) {
         console.error(err);
         setStatus('エラーが発生しました。コンソールを確認してください', '#ef4444');
+        errorText.textContent = err?.message || String(err);
       }
     });
 
