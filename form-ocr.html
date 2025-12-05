@@ -183,28 +183,32 @@
         <p class="muted">読み取り結果を自動で差し込みます。不備は自由に修正できます。</p>
         <div class="flex">
           <div class="half">
-            <label for="name">氏名</label>
+            <label for="kana">与信者名フリガナ</label>
+            <input id="kana" name="kana" placeholder="ヤマダ　タロウ">
+          </div>
+          <div class="half">
+            <label for="name">預金者名（漢字）</label>
             <input id="name" name="name" placeholder="山田 太郎">
           </div>
           <div class="half">
-            <label for="phone">電話番号</label>
-            <input id="phone" name="phone" placeholder="090-1234-5678">
+            <label for="bank">金融機関名（銀行）</label>
+            <input id="bank" name="bank" placeholder="〇〇銀行">
           </div>
           <div class="half">
-            <label for="email">メールアドレス</label>
-            <input id="email" name="email" placeholder="example@mail.jp">
+            <label for="branch">支店名</label>
+            <input id="branch" name="branch" placeholder="△△支店">
           </div>
           <div class="half">
-            <label for="zip">郵便番号</label>
-            <input id="zip" name="zip" placeholder="100-0001">
+            <label for="bankCode">金融機関コード</label>
+            <input id="bankCode" name="bankCode" placeholder="4桁">
           </div>
-          <div style="flex: 1 1 100%;">
-            <label for="address">住所</label>
-            <input id="address" name="address" placeholder="東京都千代田区..." >
+          <div class="half">
+            <label for="branchCode">店番号（支店コード）</label>
+            <input id="branchCode" name="branchCode" placeholder="3桁">
           </div>
-          <div style="flex: 1 1 100%;">
-            <label for="notes">自由記入 / 備考</label>
-            <textarea id="notes" placeholder="特記事項を記入してください"></textarea>
+          <div class="half">
+            <label for="accountNumber">口座番号</label>
+            <input id="accountNumber" name="accountNumber" placeholder="7桁など">
           </div>
         </div>
         <div class="actions">
@@ -239,12 +243,14 @@
     const rawText = document.getElementById('rawText');
 
     const fields = {
+      kana: document.getElementById('kana'),
       name: document.getElementById('name'),
-      phone: document.getElementById('phone'),
-      email: document.getElementById('email'),
-      zip: document.getElementById('zip'),
-      address: document.getElementById('address'),
-      notes: document.getElementById('notes'),
+      bank: document.getElementById('bank'),
+      branch: document.getElementById('branch'),
+      bankCode: document.getElementById('bankCode'),
+      branchCode: document.getElementById('branchCode'),
+      accountNumber: document.getElementById('accountNumber'),
+      notes: document.getElementById('notes'), // notes element removed, keep for safety if present
     };
 
     let pdfData = null;
@@ -287,7 +293,7 @@
       pdfData = null;
       canvas.hidden = true;
       rawText.value = '';
-      Object.values(fields).forEach(f => f.value = '');
+      Object.values(fields).forEach(f => f && (f.value = ''));
       preview.querySelector('.muted')?.classList.remove('hidden');
       setStatus('待機中', '#d1d5db');
     });
@@ -339,23 +345,42 @@
       const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
       const joined = lines.join(' ');
 
-      const nameMatch = joined.match(/氏名[:：]?\s*([^\s　]+)/) || joined.match(/御名前[:：]?\s*([^\s　]+)/);
+      // フリガナ
+      const kanaMatch = joined.match(/フリガナ[:：]?\s*([ァ-ンヴー\s　]+)/);
+      if (kanaMatch) fields.kana.value = kanaMatch[1].trim();
+
+      // 預金者名（漢字）/口座名義人
+      const nameMatch =
+        joined.match(/預金者名[:：]?\s*([^\s　]+)/) ||
+        joined.match(/口座名義人[:：]?\s*([^\s　]+)/);
       if (nameMatch) fields.name.value = nameMatch[1];
 
-      const phoneMatch = joined.match(/0\d{1,4}[-－]?\d{1,4}[-－]?\d{3,4}/);
-      if (phoneMatch) fields.phone.value = phoneMatch[0];
+      // 金融機関名
+      const bankMatch = joined.match(/(銀行名|金融機関名)[:：]?\s*([^\s　]+)/);
+      if (bankMatch) fields.bank.value = bankMatch[2];
 
-      const emailMatch = joined.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-      if (emailMatch) fields.email.value = emailMatch[0];
+      // 支店名 / 店名
+      const branchMatch = joined.match(/(支店名|店名)[:：]?\s*([^\s　]+)/);
+      if (branchMatch) fields.branch.value = branchMatch[2];
 
-      const zipMatch = joined.match(/〒?\s?(\d{3})[-－]?(\d{4})/);
-      if (zipMatch) fields.zip.value = `${zipMatch[1]}-${zipMatch[2]}`;
+      // 金融機関コード（4桁を優先）
+      const bankCodeMatch =
+        joined.match(/金融機関コード[:：]?\s*(\d{4})/) ||
+        joined.match(/コード[:：]?\s*(\d{4})/);
+      if (bankCodeMatch) fields.bankCode.value = bankCodeMatch[1];
 
-      const addressMatch = joined.match(/(都|道|府|県).+?(市|区|町|村).+/);
-      if (addressMatch) fields.address.value = addressMatch[0];
+      // 店番号（3桁）
+      const branchCodeMatch =
+        joined.match(/店番号[:：]?\s*(\d{3})/) ||
+        joined.match(/支店コード[:：]?\s*(\d{3})/);
+      if (branchCodeMatch) fields.branchCode.value = branchCodeMatch[1];
 
-      // Put raw text into notes as well for reference
-      fields.notes.value = lines.slice(0, 6).join('\n');
+      // 口座番号（7桁前後）
+      const accountMatch = joined.match(/口座番号[:：]?\s*(\d{6,8})/);
+      if (accountMatch) fields.accountNumber.value = accountMatch[1];
+
+      // Put raw text into notes if exists
+      if (fields.notes) fields.notes.value = lines.slice(0, 6).join('\n');
     };
 
     document.getElementById('applyTextBtn').addEventListener('click', () => {
@@ -367,12 +392,13 @@
 
     document.getElementById('submitBtn').addEventListener('click', () => {
       const payload = {
+        kana: fields.kana.value,
         name: fields.name.value,
-        phone: fields.phone.value,
-        email: fields.email.value,
-        zip: fields.zip.value,
-        address: fields.address.value,
-        notes: fields.notes.value,
+        bank: fields.bank.value,
+        branch: fields.branch.value,
+        bankCode: fields.bankCode.value,
+        branchCode: fields.branchCode.value,
+        accountNumber: fields.accountNumber.value,
         rawText: rawText.value,
       };
       console.log('送信するデータ（サンプル）', payload);
